@@ -24,7 +24,7 @@ class BatchInput(BaseModel):
 # === Utility ===
 def split_into_sentences_nepali(text):
     # Split on danda (।), question mark (?) or exclamation (!)
-    sentences = re.split(r'[।?!]', text)
+    sentences = re.split(r'[।?!|]', text)
     # Strip whitespace and remove empty strings
     sentences = [s.strip() for s in sentences if s.strip()]
     return sentences
@@ -52,30 +52,38 @@ def chunk_text(text, tokenizer, max_tokens=300):
 
 # === Translation ===
 def translate_nepali_to_english(text: str) -> str:
-    chunks = chunk_text(text, tokenizer, max_tokens=300)
-    translated_chunks = []
+    sentences = split_into_sentences_nepali(text)
+    translated_sentences = []
 
-    for chunk in chunks:
-        input_text = "translate Nepali to English: " + chunk
-        encoding = tokenizer(
-            input_text,
-            return_tensors="pt",
-            truncation=True,
-            padding=True,
-            max_length=300
-        ).to(device)
+    for sentence in sentences:
+        chunks = chunk_text(sentence, tokenizer, max_tokens=300)
+        translated_chunks = []
 
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=encoding["input_ids"],
-                attention_mask=encoding["attention_mask"],
-                max_length=300,
-                num_beams=4
-            )
-        translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        translated_chunks.append(translated)
+        for chunk in chunks:
+            input_text = "translate Nepali to English: " + chunk
+            encoding = tokenizer(
+                input_text,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+                max_length=512
+            ).to(device)
 
-    return " ".join(translated_chunks)
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=encoding["input_ids"],
+                    attention_mask=encoding["attention_mask"],
+                    max_length=512,
+                    num_beams=4
+                )
+
+            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            translated_chunks.append(translated)
+
+        translated_sentences.append(" ".join(translated_chunks))
+
+    return " . ".join(translated_sentences)
+
 
 # === Endpoints ===
 @app.post("/translate")
